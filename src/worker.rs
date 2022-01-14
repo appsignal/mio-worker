@@ -119,7 +119,8 @@ where
                 Some(message) => {
                     trace!("Triggering notify on handler");
                     // Run the handler
-                    self.handler.notify(&self.context, message)?;
+                    self.handler
+                        .notify(&self.context, self.poll.registry(), message)?;
                     // See if there are more messages we need to wake up for
                     if !self.context.messages.is_empty() {
                         self.context.waker.wake()?;
@@ -133,7 +134,8 @@ where
                 Some(timeouts) => {
                     trace!("Triggering {} timeout(s) in handler", timeouts.len());
                     for (_instant, timeout) in timeouts {
-                        self.handler.timeout(&self.context, timeout)?;
+                        self.handler
+                            .timeout(&self.context, self.poll.registry(), timeout)?;
                     }
                 }
                 None => trace!("No timeouts"),

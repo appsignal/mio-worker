@@ -11,12 +11,22 @@ where
     type Timeout;
 
     /// Handle a message that was sent to the worker context
-    fn notify(&mut self, _context: &WorkerContext<Self>, _message: Self::Message) -> Result<()> {
+    fn notify(
+        &mut self,
+        _context: &WorkerContext<Self>,
+        _registry: &Registry,
+        _message: Self::Message,
+    ) -> Result<()> {
         Ok(())
     }
 
     /// Handle a timeout that was set in the worker context
-    fn timeout(&mut self, _context: &WorkerContext<Self>, _timeout: Self::Timeout) -> Result<()> {
+    fn timeout(
+        &mut self,
+        _context: &WorkerContext<Self>,
+        _registry: &Registry,
+        _timeout: Self::Timeout,
+    ) -> Result<()> {
         Ok(())
     }
 

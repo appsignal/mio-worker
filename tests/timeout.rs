@@ -3,7 +3,7 @@ use std::thread;
 use std::time::Duration;
 
 use log::*;
-use mio::Poll;
+use mio::{Poll, Registry};
 use mio_worker::{Handler, Result, Worker, WorkerContext};
 
 mod common;
@@ -18,7 +18,12 @@ impl Handler for TimeoutsTestHandler {
     type Message = ();
     type Timeout = String;
 
-    fn timeout(&mut self, _context: &WorkerContext<Self>, timeout: Self::Timeout) -> Result<()> {
+    fn timeout(
+        &mut self,
+        _context: &WorkerContext<Self>,
+        _registry: &Registry,
+        timeout: Self::Timeout,
+    ) -> Result<()> {
         debug!("Timeout {:?}", timeout);
         self.timeouts.lock().unwrap().push(timeout);
         Ok(())
