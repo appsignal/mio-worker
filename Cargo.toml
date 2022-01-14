@@ -8,7 +8,7 @@ edition = "2018"
 log = "*"
 
 [dependencies.mio]
-version = "0.7"
+version = "0.8"
 features = ["os-poll", "net"]
 
 [dev-dependencies]

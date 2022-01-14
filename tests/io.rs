@@ -5,7 +5,7 @@ use std::thread;
 use std::time::Duration;
 
 use log::*;
-use mio::net::{TcpListener, TcpSocket, TcpStream};
+use mio::net::{TcpListener, TcpStream};
 use mio::{event::Event, Interest, Poll, Registry, Token};
 use mio_worker::{Handler, Result, Worker, WorkerContext};
 
@@ -157,8 +157,7 @@ fn test_io() {
     });
 
     // Set up the TCP client
-    let client = TcpSocket::new_v4().unwrap();
-    let mut stream = client.connect(address).unwrap();
+    let mut stream = TcpStream::connect(address).unwrap();
     client_poll
         .registry()
         .register(&mut stream, Token(0), Interest::WRITABLE)
