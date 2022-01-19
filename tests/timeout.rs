@@ -48,7 +48,7 @@ fn test_timeout() {
     let handler = TimeoutsTestHandler::new(timeouts.clone());
 
     // Create worker and get a context
-    let worker = Worker::new(poll, handler).unwrap();
+    let mut worker = Worker::new(poll, handler).unwrap();
     let context = worker.context();
 
     // Run the worker

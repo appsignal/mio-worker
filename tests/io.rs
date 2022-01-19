@@ -151,7 +151,7 @@ fn test_io() {
     let server_handler = ServerHandler::new(listener, messages.clone());
 
     // Create a server in a thread
-    let server_worker = Worker::new(server_poll, server_handler).unwrap();
+    let mut server_worker = Worker::new(server_poll, server_handler).unwrap();
     thread::spawn(move || {
         server_worker.run().unwrap();
     });
@@ -167,7 +167,7 @@ fn test_io() {
     let client_handler = ClientHandler::new(stream);
 
     // Create a client in a thread
-    let client_worker = Worker::new(client_poll, client_handler).unwrap();
+    let mut client_worker = Worker::new(client_poll, client_handler).unwrap();
     thread::spawn(move || {
         client_worker.run().unwrap();
     });

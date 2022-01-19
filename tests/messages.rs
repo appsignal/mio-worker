@@ -48,7 +48,7 @@ fn test_messages() {
     let handler = MessagesTestHandler::new(messages.clone());
 
     // Create worker and get a context
-    let worker = Worker::new(poll, handler).unwrap();
+    let mut worker = Worker::new(poll, handler).unwrap();
     let context = worker.context();
 
     // Run the worker
