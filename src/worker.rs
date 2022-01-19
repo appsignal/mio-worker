@@ -12,13 +12,56 @@ use log::{error, trace};
 /// Indicates a message was sent or timeout set/triggered
 const WAKER_TOKEN: Token = Token(std::usize::MAX);
 
-pub struct WorkerContext<H: Handler> {
+struct WorkerContextInner<H: Handler> {
     /// Waker to wake the worker when there is a new message or timeout
-    waker: Mutex<Option<Waker>>,
+    waker: Option<Waker>,
     /// Enqueued messages to be delivered to the handler
     messages: Messages<H>,
     /// Timeouts to trigger in the handler
     timeouts: Timeouts<H>,
+}
+
+impl<H> WorkerContextInner<H>
+where
+    H: Handler,
+{
+    fn new(waker: Option<Waker>) -> Self {
+        Self {
+            waker: waker,
+            messages: Messages::new(),
+            timeouts: Timeouts::new(),
+        }
+    }
+
+    #[inline]
+    fn send_message(&self, message: H::Message) -> Result<()> {
+        trace!("Sending message");
+        // Push the message onto the queue
+        self.messages.push(message);
+        // Wake up the worker
+        self.wake()
+    }
+
+    #[inline]
+    fn set_timeout(&self, duration: Duration, timeout: H::Timeout) -> Result<()> {
+        trace!("Setting timeout for {}ms from now", duration.as_millis());
+        // Set the timeout
+        self.timeouts.set(duration, timeout);
+        // Wake up the worker
+        self.wake()
+    }
+
+    #[inline]
+    fn wake(&self) -> Result<()> {
+        match self.waker {
+            Some(ref waker) => waker.wake(),
+            None => Ok(()),
+        }
+    }
+}
+
+pub struct WorkerContext<H: Handler> {
+    inner: Mutex<WorkerContextInner<H>>,
 }
 
 impl<H> WorkerContext<H>
@@ -26,25 +69,18 @@ where
     H: Handler,
 {
     pub fn new() -> Self {
-        Self {
-            waker: Mutex::new(None),
-            messages: Messages::new(),
-            timeouts: Timeouts::new(),
-        }
-    }
-
-    fn with_poll(poll: &Poll) -> Result<Self> {
-        let waker = Mutex::new(Some(Waker::new(poll.registry(), WAKER_TOKEN)?));
-        Ok(Self {
-            waker: waker,
-            messages: Messages::new(),
-            timeouts: Timeouts::new(),
-        })
+        Self{ inner: Mutex::new(WorkerContextInner::new(None)) }
     }
 
     /// Send a message to the handler running in this worker
     pub fn send_message(&self, message: H::Message) -> Result<()> {
         trace!("Sending message");
+        match self.inner.lock() {
+
+
+
+        }
+
         // Push the message onto the queue
         self.messages.push(message);
         // Wake up the worker
@@ -58,19 +94,6 @@ where
         self.timeouts.set(duration, timeout);
         // Wake up the worker
         self.wake()
-    }
-
-    fn set_waker(&self, poll: &Poll) -> Result<()> {
-        match self.waker.lock() {
-            Ok(mut waker) => {
-                let new_waker = Waker::new(poll.registry(), WAKER_TOKEN)?;
-                waker.replace(new_waker);
-            },
-            Err(e) => {
-                error!("Cannot lock waker: {}", e);
-            }
-        }
-        Ok(())
     }
 
     fn wake(&self) -> Result<()> {
