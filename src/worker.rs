@@ -89,7 +89,7 @@ where
 
     /// Run this worker, blocks the thread it is on until
     /// it finishes.
-    pub fn run(mut self) -> Result<()> {
+    pub fn run(&mut self) -> Result<()> {
         trace!("Starting worker");
 
         // Storage for events
