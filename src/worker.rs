@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use mio::{Events, Poll, Token, Waker};
@@ -7,14 +7,14 @@ use crate::message::Messages;
 use crate::timeout::Timeouts;
 use crate::{Handler, Result};
 
-use log::trace;
+use log::{error, trace};
 
 /// Indicates a message was sent or timeout set/triggered
 const WAKER_TOKEN: Token = Token(std::usize::MAX);
 
 pub struct WorkerContext<H: Handler> {
     /// Waker to wake the worker when there is a new message or timeout
-    waker: Arc<Waker>,
+    waker: Mutex<Option<Waker>>,
     /// Enqueued messages to be delivered to the handler
     messages: Messages<H>,
     /// Timeouts to trigger in the handler
@@ -25,8 +25,16 @@ impl<H> WorkerContext<H>
 where
     H: Handler,
 {
-    pub fn new(poll: &Poll) -> Result<Self> {
-        let waker = Arc::new(Waker::new(poll.registry(), WAKER_TOKEN)?);
+    pub fn new() -> Self {
+        Self {
+            waker: Mutex::new(None),
+            messages: Messages::new(),
+            timeouts: Timeouts::new(),
+        }
+    }
+
+    fn with_poll(poll: &Poll) -> Result<Self> {
+        let waker = Mutex::new(Some(Waker::new(poll.registry(), WAKER_TOKEN)?));
         Ok(Self {
             waker: waker,
             messages: Messages::new(),
@@ -40,7 +48,7 @@ where
         // Push the message onto the queue
         self.messages.push(message);
         // Wake up the worker
-        self.waker.wake()
+        self.wake()
     }
 
     /// Set a timeout to run
@@ -49,7 +57,36 @@ where
         // Set the timeout
         self.timeouts.set(duration, timeout);
         // Wake up the worker
-        self.waker.wake()
+        self.wake()
+    }
+
+    fn set_waker(&self, poll: &Poll) -> Result<()> {
+        match self.waker.lock() {
+            Ok(mut waker) => {
+                let new_waker = Waker::new(poll.registry(), WAKER_TOKEN)?;
+                waker.replace(new_waker);
+            },
+            Err(e) => {
+                error!("Cannot lock waker: {}", e);
+            }
+        }
+        Ok(())
+    }
+
+    fn wake(&self) -> Result<()> {
+        match self.waker.lock() {
+            Ok(waker) => match waker.as_ref() {
+                Some(waker) => waker.wake(),
+                None => {
+                    trace!("Sending message to context without waker");
+                    Ok(())
+                }
+            },
+            Err(e) => {
+                error!("Cannot lock waker: {}", e);
+                Ok(())
+            }
+        }
     }
 }
 
@@ -68,7 +105,20 @@ where
     /// any IO you're interested in already registered to it.
     /// Implement the handler trait to get the behaviour you like.
     pub fn new(poll: Poll, handler: H) -> Result<Self> {
-        let context = Arc::new(WorkerContext::new(&poll)?);
+        let context = Arc::new(WorkerContext::with_poll(&poll)?);
+        Ok(Self {
+            poll: poll,
+            handler: handler,
+            context: context,
+            events_capacity: 128,
+        })
+    }
+
+    /// Create a new worker with a context that was already created
+    /// earlier. A context can only be used with this function once.
+    pub fn with_context(poll: Poll, handler: H, context: Arc<WorkerContext<H>>) -> Result<Self> {
+        context.set_waker(&poll)?;
+        context.wake()?;
         Ok(Self {
             poll: poll,
             handler: handler,
@@ -123,7 +173,7 @@ where
                         .notify(&self.context, self.poll.registry(), message)?;
                     // See if there are more messages we need to wake up for
                     if !self.context.messages.is_empty() {
-                        self.context.waker.wake()?;
+                        self.context.wake()?;
                     }
                 }
                 None => trace!("No messages"),

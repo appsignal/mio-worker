@@ -1,3 +1,9 @@
+use std::sync::Once;
+
+static LOG: Once = Once::new();
+
 pub fn setup() {
-    env_logger::init();
+    LOG.call_once(|| {
+        env_logger::init();
+    });
 }
