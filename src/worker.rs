@@ -145,4 +145,8 @@ where
             poll_duration = self.context.timeouts.next_timeout();
         }
     }
+
+    pub fn take_handler(self) -> H {
+        self.handler
+    }
 }
