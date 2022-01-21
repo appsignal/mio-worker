@@ -78,6 +78,9 @@ fn test_messages_with_context() {
     // Create a content to use later
     let context = Arc::new(WorkerContext::new());
 
+    // Should not be running yet
+    assert!(!context.is_running());
+
     // Send a couple of messages
     for i in 0..5 {
         context.send_message(format!("Message {}", i)).unwrap();
@@ -91,7 +94,7 @@ fn test_messages_with_context() {
     let handler = MessagesTestHandler::new(messages.clone());
 
     // Create worker and get a context
-    let mut worker = Worker::with_context(poll, handler, context).unwrap();
+    let mut worker = Worker::with_context(poll, handler, context.clone()).unwrap();
 
     // Run the worker
     thread::spawn(move || {
@@ -99,7 +102,18 @@ fn test_messages_with_context() {
     });
 
     // Sleep for a bit
-    thread::sleep(Duration::from_secs(1));
+    thread::sleep(Duration::from_millis(500));
+
+    assert!(context.is_running());
+
+    // Shutdown the worker
+    context.shutdown().expect("Could not shutdown");
+
+    // Sleep for a bit
+    thread::sleep(Duration::from_millis(500));
+
+    // Worker should not be running now
+    assert!(!context.is_running());
 
     // See if we received the messages
     let messages = messages.lock().unwrap();

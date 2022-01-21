@@ -1,4 +1,5 @@
 use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use mio::{Events, Poll, Token, Waker};
@@ -19,6 +20,8 @@ pub struct WorkerContext<H: Handler> {
     messages: Messages<H>,
     /// Timeouts to trigger in the handler
     timeouts: Timeouts<H>,
+    /// Whether the worker should be running
+    running: AtomicBool
 }
 
 impl<H> WorkerContext<H>
@@ -30,6 +33,7 @@ where
             waker: Mutex::new(None),
             messages: Messages::new(),
             timeouts: Timeouts::new(),
+            running: AtomicBool::new(false),
         }
     }
 
@@ -39,6 +43,7 @@ where
             waker: waker,
             messages: Messages::new(),
             timeouts: Timeouts::new(),
+            running: AtomicBool::new(false),
         })
     }
 
@@ -58,6 +63,17 @@ where
         self.timeouts.set(duration, timeout);
         // Wake up the worker
         self.wake()
+    }
+
+    /// Shutdown the worker this context is bound to
+    pub fn shutdown(&self) -> Result<()> {
+        self.running.store(false, Ordering::SeqCst);
+        self.wake()
+    }
+
+    /// Whether the worker this context is bound to is running
+    pub fn is_running(&self) -> bool {
+        self.running.load(Ordering::Relaxed) && self.wake().is_ok()
     }
 
     fn set_waker(&self, poll: &Poll) -> Result<()> {
@@ -142,6 +158,9 @@ where
     pub fn run(&mut self) -> Result<()> {
         trace!("Starting worker");
 
+        // Store that we're running
+        self.context.running.store(true, Ordering::SeqCst);
+
         // Storage for events
         let mut events = Events::with_capacity(self.events_capacity);
 
@@ -149,6 +168,11 @@ where
         let mut poll_duration: Option<Duration> = None;
 
         loop {
+            // Check that we need to be running
+            if !self.context.running.load(Ordering::Relaxed) {
+                return Ok(());
+            }
+
             // Poll for new events
             self.poll.poll(&mut events, poll_duration)?;
 
