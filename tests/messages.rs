@@ -24,7 +24,7 @@ impl Handler for MessagesTestHandler {
         _registry: &Registry,
         message: Self::Message,
     ) -> Result<()> {
-        debug!("Message {:?}", message);
+        debug!("Handler message call {:?}", message);
         self.messages.lock().unwrap().push(message);
         Ok(())
     }
@@ -56,9 +56,12 @@ fn test_messages_new() {
         worker.run().unwrap();
     });
 
-    // Send a couple of messages
-    for i in 0..5 {
-        context.send_message(format!("Message {}", i)).unwrap();
+    // Send messages. Both fast and with some time in between.
+    for i in 0..10 {
+        thread::sleep(Duration::from_millis(100));
+        for i2 in 0..10_000 {
+            context.send_message(format!("Message {}-{}", i, i2)).unwrap();
+        }
     }
 
     // Sleep for a bit
@@ -66,9 +69,9 @@ fn test_messages_new() {
 
     // See if we received the messages
     let messages = messages.lock().unwrap();
-    assert_eq!(5, messages.len());
-    assert_eq!("Message 0", messages[0]);
-    assert_eq!("Message 4", messages[4]);
+    assert_eq!(100_000, messages.len());
+    assert_eq!("Message 0-0", messages[0]);
+    assert_eq!("Message 0-4", messages[4]);
 }
 
 #[test]
@@ -82,7 +85,7 @@ fn test_messages_with_context() {
     assert!(!context.is_running());
 
     // Send a couple of messages
-    for i in 0..5 {
+    for i in 0..10_000 {
         context.send_message(format!("Message {}", i)).unwrap();
     }
 
@@ -117,7 +120,7 @@ fn test_messages_with_context() {
 
     // See if we received the messages
     let messages = messages.lock().unwrap();
-    assert_eq!(5, messages.len());
+    assert_eq!(10_000, messages.len());
     assert_eq!("Message 0", messages[0]);
     assert_eq!("Message 4", messages[4]);
 }
