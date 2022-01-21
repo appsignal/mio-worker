@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use mio::event::Event;
 use mio::Registry;
 
@@ -7,8 +9,8 @@ pub trait Handler
 where
     Self: Sized,
 {
-    type Message;
-    type Timeout;
+    type Message: Debug;
+    type Timeout: Debug;
 
     /// Handle a message that was sent to the worker context
     fn notify(

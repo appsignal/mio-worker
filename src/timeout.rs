@@ -23,13 +23,15 @@ where
         }
     }
 
-    /// Duration to the next timeout
     pub fn next_timeout(&self) -> Option<Duration> {
         match self.store.lock() {
             Ok(store) => match store.iter().next() {
                 // Port to https://doc.rust-lang.org/std/collections/struct.BTreeMap.html#method.first_key_value
                 // once this is stabilized.
-                Some((instant, _)) => instant.checked_duration_since(Instant::now()),
+                Some((instant, _)) => match instant.checked_duration_since(Instant::now()) {
+                    Some(duration) => Some(duration),
+                    None => Some(Duration::from_millis(0))
+                },
                 None => None,
             },
             Err(e) => {
@@ -61,7 +63,7 @@ where
         }
     }
 
-    /// Pop the timeouts that are ready to fire
+    /// Pop the timeouts that are ready to fire.
     pub fn pop(&self) -> Option<BTreeMap<Instant, H::Timeout>> {
         match self.store.lock() {
             Ok(mut store) => {

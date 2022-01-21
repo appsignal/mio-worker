@@ -1,5 +1,5 @@
-use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use mio::{Events, Poll, Token, Waker};
@@ -21,7 +21,7 @@ pub struct WorkerContext<H: Handler> {
     /// Timeouts to trigger in the handler
     timeouts: Timeouts<H>,
     /// Whether the worker should be running
-    running: AtomicBool
+    running: AtomicBool,
 }
 
 impl<H> WorkerContext<H>
@@ -49,7 +49,7 @@ where
 
     /// Send a message to the handler running in this worker
     pub fn send_message(&self, message: H::Message) -> Result<()> {
-        trace!("Sending message");
+        trace!("Sending message {:?}", message);
         // Push the message onto the queue
         self.messages.push(message);
         // Wake up the worker
@@ -58,10 +58,15 @@ where
 
     /// Set a timeout to run
     pub fn set_timeout(&self, duration: Duration, timeout: H::Timeout) -> Result<()> {
-        trace!("Setting timeout for {}ms from now", duration.as_millis());
+        trace!(
+            "Setting timeout {:?} for {}ms from now",
+            timeout,
+            duration.as_millis()
+        );
         // Set the timeout
         self.timeouts.set(duration, timeout);
-        // Wake up the worker
+        // Waking up the worker ensures that the right timeout is used
+        // for the next poll
         self.wake()
     }
 
@@ -81,7 +86,7 @@ where
             Ok(mut waker) => {
                 let new_waker = Waker::new(poll.registry(), WAKER_TOKEN)?;
                 waker.replace(new_waker);
-            },
+            }
             Err(e) => {
                 error!("Cannot lock waker: {}", e);
             }
@@ -173,46 +178,44 @@ where
                 return Ok(());
             }
 
+            // Handle timeouts
+            match self.context.timeouts.pop() {
+                Some(timeouts) => {
+                    for (_instant, timeout) in timeouts {
+                        trace!("Triggering timeout with {:?} on handler", timeout);
+                        self.handler
+                            .timeout(&self.context, self.poll.registry(), timeout)?;
+                    }
+                }
+                None => (),
+            }
+
             // Poll for new events
             self.poll.poll(&mut events, poll_duration)?;
 
             // Handle events
             for event in &events {
                 if event.token() == WAKER_TOKEN {
-                    // We woke because a message was enqueued or timeout set
+                    // We woke because a message was enqueued or a timeout was set
+                    match self.context.messages.pop() {
+                        Some(message) => {
+                            trace!("Triggering notify with {:?} on handler", message);
+                            // Run the handler
+                            self.handler
+                                .notify(&self.context, self.poll.registry(), message)?;
+                            // See if there are more messages we need to wake up for
+                            if !self.context.messages.is_empty() {
+                                self.context.wake()?;
+                            }
+                        }
+                        None => (),
+                    }
                 } else {
                     // We woke because of an IO event
-                    trace!("Triggering ready on handler");
+                    trace!("Triggering ready with token {} on handler", event.token().0);
                     self.handler
                         .ready(&self.context, self.poll.registry(), event)?;
                 }
-            }
-
-            // Handle next message
-            match self.context.messages.pop() {
-                Some(message) => {
-                    trace!("Triggering notify on handler");
-                    // Run the handler
-                    self.handler
-                        .notify(&self.context, self.poll.registry(), message)?;
-                    // See if there are more messages we need to wake up for
-                    if !self.context.messages.is_empty() {
-                        self.context.wake()?;
-                    }
-                }
-                None => trace!("No messages"),
-            }
-
-            // Handle timeouts
-            match self.context.timeouts.pop() {
-                Some(timeouts) => {
-                    trace!("Triggering {} timeout(s) in handler", timeouts.len());
-                    for (_instant, timeout) in timeouts {
-                        self.handler
-                            .timeout(&self.context, self.poll.registry(), timeout)?;
-                    }
-                }
-                None => trace!("No timeouts"),
             }
 
             // Set the poll duration to match up to the next timeout

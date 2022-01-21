@@ -24,7 +24,7 @@ impl Handler for TimeoutsTestHandler {
         _registry: &Registry,
         timeout: Self::Timeout,
     ) -> Result<()> {
-        debug!("Timeout {:?}", timeout);
+        debug!("Handler timeout call {:?}", timeout);
         self.timeouts.lock().unwrap().push(timeout);
         Ok(())
     }
@@ -37,7 +37,44 @@ impl TimeoutsTestHandler {
 }
 
 #[test]
-fn test_timeout() {
+fn test_timeout_set_before_run() {
+    common::setup();
+
+    // Create a mio poll instance
+    let poll = Poll::new().unwrap();
+
+    // Create a messages store and handler
+    let timeouts = Arc::new(Mutex::new(Vec::new()));
+    let handler = TimeoutsTestHandler::new(timeouts.clone());
+
+    // Create worker and get a context
+    let mut worker = Worker::new(poll, handler).unwrap();
+    let context = worker.context();
+
+    // Set a couple of timeouts
+    for i in 0..5 {
+        context
+            .set_timeout(Duration::from_millis(i * 100), format!("Timeout {}", i))
+            .unwrap();
+    }
+
+    // Run the worker
+    thread::spawn(move || {
+        worker.run().unwrap();
+    });
+
+    // Sleep for a bit
+    thread::sleep(Duration::from_secs(1));
+
+    // See if the timeouts triggered
+    let timeouts = timeouts.lock().unwrap();
+    assert_eq!(5, timeouts.len());
+    assert_eq!("Timeout 0", timeouts[0]);
+    assert_eq!("Timeout 4", timeouts[4]);
+}
+
+#[test]
+fn test_timeout_set_after_run() {
     common::setup();
 
     // Create a mio poll instance
@@ -56,6 +93,9 @@ fn test_timeout() {
         worker.run().unwrap();
     });
 
+    // Sleep for a bit
+    thread::sleep(Duration::from_secs(1));
+
     // Set a couple of timeouts
     for i in 0..5 {
         context
@@ -64,7 +104,7 @@ fn test_timeout() {
     }
 
     // Sleep for a bit
-    thread::sleep(Duration::from_secs(2));
+    thread::sleep(Duration::from_secs(1));
 
     // See if the timeouts triggered
     let timeouts = timeouts.lock().unwrap();
