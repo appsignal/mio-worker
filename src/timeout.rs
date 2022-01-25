@@ -30,7 +30,7 @@ where
                 // once this is stabilized.
                 Some((instant, _)) => match instant.checked_duration_since(Instant::now()) {
                     Some(duration) => Some(duration),
-                    None => Some(Duration::from_millis(0))
+                    None => Some(Duration::from_millis(0)),
                 },
                 None => None,
             },

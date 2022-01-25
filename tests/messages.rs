@@ -60,7 +60,9 @@ fn test_messages_new() {
     for i in 0..10 {
         thread::sleep(Duration::from_millis(100));
         for i2 in 0..10_000 {
-            context.send_message(format!("Message {}-{}", i, i2)).unwrap();
+            context
+                .send_message(format!("Message {}-{}", i, i2))
+                .unwrap();
         }
     }
 

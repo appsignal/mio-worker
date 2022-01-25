@@ -219,6 +219,13 @@ where
             }
 
             // Set the poll duration to match up to the next timeout
+            let next_timeout = self.context.timeouts.next_timeout();
+            match next_timeout {
+                Some(timeout) => {
+                    trace!("Setting next poll duration to {}ms", timeout.as_millis())
+                }
+                None => trace!("Setting next poll duration to none"),
+            };
             poll_duration = self.context.timeouts.next_timeout();
         }
     }
