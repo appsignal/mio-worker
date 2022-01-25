@@ -72,6 +72,7 @@ where
 
     /// Shutdown the worker this context is bound to
     pub fn shutdown(&self) -> Result<()> {
+        trace!("Called shutdown on worker context");
         self.running.store(false, Ordering::SeqCst);
         self.wake()
     }
