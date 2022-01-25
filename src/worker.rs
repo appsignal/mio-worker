@@ -211,10 +211,12 @@ where
                         None => (),
                     }
                 } else {
-                    // We woke because of an IO event
-                    trace!("Triggering ready with token {} on handler", event.token().0);
-                    self.handler
-                        .ready(&self.context, self.poll.registry(), event)?;
+                    if event.is_readable() || event.is_writable() {
+                        // We woke because of an IO event
+                        trace!("Triggering ready with token {} on handler", event.token().0);
+                        self.handler
+                            .ready(&self.context, self.poll.registry(), event)?;
+                    }
                 }
             }
 
