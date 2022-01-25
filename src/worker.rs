@@ -211,7 +211,7 @@ where
                         None => (),
                     }
                 } else {
-                    if event.is_readable() || event.is_writable() {
+                    if event.is_readable() || event.is_writable() || event.is_error() {
                         // We woke because of an IO event
                         trace!("Triggering ready with token {} on handler", event.token().0);
                         self.handler
