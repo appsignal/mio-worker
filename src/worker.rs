@@ -175,6 +175,7 @@ where
         loop {
             // Check that we need to be running
             if !self.context.running.load(Ordering::Relaxed) {
+                trace!("Exiting worker loop");
                 return Ok(());
             }
 
