@@ -53,8 +53,13 @@ where
             match self.queue.lock() {
                 Ok(mut queue) => {
                     let len = self.length.fetch_sub(1, Ordering::Relaxed);
-                    trace!("Popping message from queue, {} left", len - 1);
-                    queue.pop_front()
+                    match queue.pop_front() {
+                        Some(message) => {
+                            trace!("Popping message from queue, {} left", len - 1);
+                            Some(message)
+                        },
+                        None => None
+                    }
                 }
                 Err(e) => {
                     error!("Could not lock messages, not returning one: {:?}", e);
