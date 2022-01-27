@@ -1,5 +1,3 @@
-use std::sync::atomic::Ordering;
-use std::sync::Arc;
 use std::time::Duration;
 
 use mio::{Events, Poll};
@@ -12,7 +10,7 @@ use log::trace;
 pub struct Worker<H: Handler> {
     poll: Poll,
     handler: H,
-    context: Arc<WorkerContext<H>>,
+    context: WorkerContext<H>,
     events_capacity: usize,
 }
 
@@ -24,7 +22,7 @@ where
     /// any IO you're interested in already registered to it.
     /// Implement the handler trait to get the behaviour you like.
     pub fn new(poll: Poll, handler: H) -> Result<Self> {
-        let context = Arc::new(WorkerContext::with_poll(&poll)?);
+        let context = WorkerContext::with_poll(&poll)?;
         Ok(Self {
             poll: poll,
             handler: handler,
@@ -35,7 +33,7 @@ where
 
     /// Create a new worker with a context that was already created
     /// earlier. A context can only be used with this function once.
-    pub fn with_context(poll: Poll, handler: H, context: Arc<WorkerContext<H>>) -> Result<Self> {
+    pub fn with_context(poll: Poll, handler: H, context: WorkerContext<H>) -> Result<Self> {
         context.set_waker(&poll)?;
         context.wake()?;
         Ok(Self {
@@ -52,7 +50,7 @@ where
     }
 
     /// Get an instance of the worker context
-    pub fn context(&self) -> Arc<WorkerContext<H>> {
+    pub fn context(&self) -> WorkerContext<H> {
         self.context.clone()
     }
 
@@ -62,7 +60,7 @@ where
         trace!("Starting worker");
 
         // Store that we're running
-        self.context.running.store(true, Ordering::SeqCst);
+        self.context.set_running(true);
 
         // Storage for events
         let mut events = Events::with_capacity(self.events_capacity);
@@ -72,13 +70,13 @@ where
 
         loop {
             // Check that we need to be running
-            if !self.context.running.load(Ordering::Relaxed) {
+            if !self.context.should_run() {
                 trace!("Exiting worker loop");
                 return Ok(());
             }
 
             // Handle timeouts
-            match self.context.timeouts.pop() {
+            match self.context.timeouts().pop() {
                 Some(timeouts) => {
                     for (_instant, timeout) in timeouts {
                         trace!("Triggering timeout with {:?} on handler", timeout);
@@ -96,14 +94,14 @@ where
             for event in &events {
                 if event.token() == WAKER_TOKEN {
                     // We woke because a message was enqueued or a timeout was set
-                    match self.context.messages.pop() {
+                    match self.context.messages().pop() {
                         Some(message) => {
                             trace!("Triggering notify with {:?} on handler", message);
                             // Run the handler
                             self.handler
                                 .notify(&self.context, self.poll.registry(), message)?;
                             // See if there are more messages we need to wake up for
-                            if !self.context.messages.is_empty() {
+                            if !self.context.messages().is_empty() {
                                 self.context.wake()?;
                             }
                         }
@@ -120,14 +118,14 @@ where
             }
 
             // Set the poll duration to match up to the next timeout
-            let next_timeout = self.context.timeouts.next_timeout();
+            let next_timeout = self.context.timeouts().next_timeout();
             match next_timeout {
                 Some(timeout) => {
                     trace!("Setting next poll duration to {}ms", timeout.as_millis())
                 }
                 None => trace!("Setting next poll duration to none"),
             };
-            poll_duration = self.context.timeouts.next_timeout();
+            poll_duration = self.context.timeouts().next_timeout();
         }
     }
 

@@ -81,7 +81,7 @@ fn test_messages_with_context() {
     common::setup();
 
     // Create a content to use later
-    let context = Arc::new(WorkerContext::new());
+    let context = WorkerContext::new();
 
     // Should not be running yet
     assert!(!context.is_running());
