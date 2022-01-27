@@ -18,24 +18,9 @@ impl<H> Worker<H>
 where
     H: Handler,
 {
-    /// Create a new worker. Pass in a poll that has
-    /// any IO you're interested in already registered to it.
-    /// Implement the handler trait to get the behaviour you like.
-    pub fn new(poll: Poll, handler: H) -> Result<Self> {
-        let context = WorkerContext::with_poll(&poll)?;
-        Ok(Self {
-            poll: poll,
-            handler: handler,
-            context: context,
-            events_capacity: 128,
-        })
-    }
-
     /// Create a new worker with a context that was already created
-    /// earlier. A context can only be used with this function once.
-    pub fn with_context(poll: Poll, handler: H, context: WorkerContext<H>) -> Result<Self> {
-        context.set_waker(&poll)?;
-        context.wake()?;
+    /// earlier.
+    pub(crate) fn new(poll: Poll, handler: H, context: WorkerContext<H>) -> Result<Self> {
         Ok(Self {
             poll: poll,
             handler: handler,

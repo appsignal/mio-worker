@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use log::*;
 use mio::{Poll, Registry};
-use mio_worker::{Handler, Result, Worker, WorkerContext};
+use mio_worker::{Handler, Result, WorkerContext};
 
 mod common;
 
@@ -48,8 +48,8 @@ fn test_messages_new() {
     let handler = MessagesTestHandler::new(messages.clone());
 
     // Create worker and get a context
-    let mut worker = Worker::new(poll, handler).unwrap();
-    let context = worker.context();
+    let context = WorkerContext::new();
+    let mut worker = context.create_worker(poll, handler).unwrap();
 
     // Run the worker
     thread::spawn(move || {
@@ -98,8 +98,8 @@ fn test_messages_with_context() {
     let messages = Arc::new(Mutex::new(Vec::new()));
     let handler = MessagesTestHandler::new(messages.clone());
 
-    // Create worker and get a context
-    let mut worker = Worker::with_context(poll, handler, context.clone()).unwrap();
+    // Create worker
+    let mut worker = context.create_worker(poll, handler).unwrap();
 
     // Run the worker
     thread::spawn(move || {

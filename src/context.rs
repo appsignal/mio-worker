@@ -6,7 +6,7 @@ use mio::{Poll, Waker};
 
 use crate::message::Messages;
 use crate::timeout::Timeouts;
-use crate::{Handler, Result, WAKER_TOKEN};
+use crate::{Handler, Result, WAKER_TOKEN, Worker};
 
 use log::{error, trace};
 
@@ -29,6 +29,7 @@ impl<H> WorkerContext<H>
 where
     H: Handler,
 {
+    /// Create a new worker context
     pub fn new() -> Self {
         Self {
             inner: Arc::new(WorkerContextInner {
@@ -38,6 +39,13 @@ where
                 running: AtomicBool::new(false),
             })
         }
+    }
+
+    /// Create a worker out of this context. Should be used only once.
+    pub fn create_worker(&self, poll: Poll, handler: H) -> Result<Worker<H>> {
+        self.set_waker(&poll)?;
+        self.wake()?;
+        Worker::new(poll, handler, self.clone())
     }
 
     pub fn with_poll(poll: &Poll) -> Result<Self> {
@@ -97,11 +105,11 @@ where
     }
 
     /// Set whether this worker should be running
-    pub fn set_running(&self, running: bool) {
+    pub(crate) fn set_running(&self, running: bool) {
         self.inner.running.store(running, Ordering::SeqCst)
     }
 
-    pub fn set_waker(&self, poll: &Poll) -> Result<()> {
+    fn set_waker(&self, poll: &Poll) -> Result<()> {
         match self.inner.waker.lock() {
             Ok(mut waker) => {
                 let new_waker = Waker::new(poll.registry(), WAKER_TOKEN)?;
@@ -130,11 +138,11 @@ where
         }
     }
 
-    pub fn messages(&self) -> &Messages<H> {
+    pub(crate) fn messages(&self) -> &Messages<H> {
         &self.inner.messages
     }
 
-    pub fn timeouts(&self) -> &Timeouts<H> {
+    pub(crate) fn timeouts(&self) -> &Timeouts<H> {
         &self.inner.timeouts
     }
 }

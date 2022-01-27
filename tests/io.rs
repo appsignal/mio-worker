@@ -7,7 +7,7 @@ use std::time::Duration;
 use log::*;
 use mio::net::{TcpListener, TcpStream};
 use mio::{event::Event, Interest, Poll, Registry, Token};
-use mio_worker::{Handler, Result, Worker, WorkerContext};
+use mio_worker::{Handler, Result, WorkerContext};
 
 mod common;
 
@@ -151,7 +151,8 @@ fn test_io() {
     let server_handler = ServerHandler::new(listener, messages.clone());
 
     // Create a server in a thread
-    let mut server_worker = Worker::new(server_poll, server_handler).unwrap();
+    let server_context = WorkerContext::new();
+    let mut server_worker = server_context.create_worker(server_poll, server_handler).unwrap();
     thread::spawn(move || {
         server_worker.run().unwrap();
     });
@@ -167,7 +168,8 @@ fn test_io() {
     let client_handler = ClientHandler::new(stream);
 
     // Create a client in a thread
-    let mut client_worker = Worker::new(client_poll, client_handler).unwrap();
+    let client_context = WorkerContext::new();
+    let mut client_worker = client_context.create_worker(client_poll, client_handler).unwrap();
     thread::spawn(move || {
         client_worker.run().unwrap();
     });

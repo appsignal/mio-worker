@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use log::*;
 use mio::{Poll, Registry};
-use mio_worker::{Handler, Result, Worker, WorkerContext};
+use mio_worker::{Handler, Result, WorkerContext};
 
 mod common;
 
@@ -48,8 +48,8 @@ fn test_timeout_set_before_run() {
     let handler = TimeoutsTestHandler::new(timeouts.clone());
 
     // Create worker and get a context
-    let mut worker = Worker::new(poll, handler).unwrap();
-    let context = worker.context();
+    let context = WorkerContext::new();
+    let mut worker = context.create_worker(poll, handler).unwrap();
 
     // Set a couple of timeouts
     for i in 0..5 {
@@ -85,8 +85,8 @@ fn test_timeout_set_after_run() {
     let handler = TimeoutsTestHandler::new(timeouts.clone());
 
     // Create worker and get a context
-    let mut worker = Worker::new(poll, handler).unwrap();
-    let context = worker.context();
+    let context = WorkerContext::new();
+    let mut worker = context.create_worker(poll, handler).unwrap();
 
     // Run the worker
     thread::spawn(move || {
