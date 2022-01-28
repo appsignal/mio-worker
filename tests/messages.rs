@@ -49,7 +49,7 @@ fn test_messages_new() {
 
     // Create worker and get a context
     let context = WorkerContext::new();
-    let mut worker = context.create_worker(poll, handler).unwrap();
+    let mut worker = context.create_worker(poll, handler).unwrap().unwrap();
 
     // Run the worker
     thread::spawn(move || {
@@ -99,7 +99,7 @@ fn test_messages_with_context() {
     let handler = MessagesTestHandler::new(messages.clone());
 
     // Create worker
-    let mut worker = context.create_worker(poll, handler).unwrap();
+    let mut worker = context.create_worker(poll, handler).unwrap().unwrap();
 
     // Run the worker
     thread::spawn(move || {

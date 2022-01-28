@@ -49,7 +49,9 @@ fn test_timeout_set_before_run() {
 
     // Create worker and get a context
     let context = WorkerContext::new();
-    let mut worker = context.create_worker(poll, handler).unwrap();
+    assert!(!context.worker_created());
+    let mut worker = context.create_worker(poll, handler).unwrap().unwrap();
+    assert!(context.worker_created());
 
     // Set a couple of timeouts
     for i in 0..5 {
@@ -86,7 +88,7 @@ fn test_timeout_set_after_run() {
 
     // Create worker and get a context
     let context = WorkerContext::new();
-    let mut worker = context.create_worker(poll, handler).unwrap();
+    let mut worker = context.create_worker(poll, handler).unwrap().unwrap();
 
     // Run the worker
     thread::spawn(move || {

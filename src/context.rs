@@ -23,6 +23,8 @@ struct WorkerContextInner<H: Handler> {
     timeouts: Timeouts<H>,
     /// Whether the worker should be running
     running: AtomicBool,
+    /// Whether a worker has been created
+    worker_created: AtomicBool
 }
 
 impl<H> WorkerContext<H>
@@ -37,27 +39,27 @@ where
                 messages: Messages::new(),
                 timeouts: Timeouts::new(),
                 running: AtomicBool::new(false),
+                worker_created: AtomicBool::new(false),
             })
         }
     }
 
-    /// Create a worker out of this context. Should be used only once.
-    pub fn create_worker(&self, poll: Poll, handler: H) -> Result<Worker<H>> {
-        self.set_waker(&poll)?;
-        self.wake()?;
-        Worker::new(poll, handler, self.clone())
-    }
-
-    pub fn with_poll(poll: &Poll) -> Result<Self> {
-        let waker = Mutex::new(Some(Waker::new(poll.registry(), WAKER_TOKEN)?));
-        Ok(Self {
-            inner: Arc::new(WorkerContextInner {
-                waker: waker,
-                messages: Messages::new(),
-                timeouts: Timeouts::new(),
-                running: AtomicBool::new(false),
-            })
-        })
+    /// Create a worker out of this context. This can only be done once, this returns
+    /// `None` if a worker has already been created with this context.
+    pub fn create_worker(&self, poll: Poll, handler: H) -> Option<Result<Worker<H>>> {
+        if self.worker_created() {
+            return None
+        }
+        match self.set_waker(&poll) {
+            Ok(()) => (),
+            Err(e) => return Some(Err(e))
+        }
+        match self.wake() {
+            Ok(()) => (),
+            Err(e) => return Some(Err(e))
+        }
+        self.inner.worker_created.store(true, Ordering::SeqCst);
+        Some(Worker::new(poll, handler, self.clone()))
     }
 
     pub fn clone(&self) -> Self {
@@ -92,6 +94,11 @@ where
         trace!("Called shutdown on worker context");
         self.inner.running.store(false, Ordering::SeqCst);
         self.wake()
+    }
+
+    /// Whether a worker has been created out of this context
+    pub fn worker_created(&self) -> bool {
+        self.inner.worker_created.load(Ordering::Relaxed)
     }
 
     /// Whether the worker this context is bound to is running
