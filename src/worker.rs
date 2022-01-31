@@ -76,6 +76,7 @@ where
             self.poll.poll(&mut events, poll_duration)?;
 
             // Handle events
+            let registry = self.poll.registry();
             for event in &events {
                 if event.token() == WAKER_TOKEN {
                     // We woke because a message was enqueued or a timeout was set
@@ -97,7 +98,7 @@ where
                         // We woke because of an IO event
                         trace!("Triggering ready with token {} on handler", event.token().0);
                         self.handler
-                            .ready(&self.context, self.poll.registry(), event)?;
+                            .ready(&self.context, registry, event)?;
                     }
                 }
             }
