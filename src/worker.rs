@@ -77,7 +77,7 @@ where
 
             // Handle events
             let registry = self.poll.registry();
-            for event in &events {
+            for event in events.iter() {
                 if event.token() == WAKER_TOKEN {
                     // We woke because a message was enqueued or a timeout was set
                     match self.context.messages().pop() {
