@@ -48,7 +48,7 @@ fn test_messages_new() {
     let handler = MessagesTestHandler::new(messages.clone());
 
     // Create worker and get a context
-    let context = WorkerContext::new();
+    let context = WorkerContext::new(64);
     let mut worker = context.create_worker(poll, handler).unwrap().unwrap();
 
     // Run the worker
@@ -81,7 +81,7 @@ fn test_messages_with_context() {
     common::setup();
 
     // Create a content to use later
-    let context = WorkerContext::new();
+    let context = WorkerContext::new(64);
 
     // Should not be running yet
     assert!(!context.is_running());

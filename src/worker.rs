@@ -20,12 +20,12 @@ where
 {
     /// Create a new worker with a context that was already created
     /// earlier.
-    pub(crate) fn new(poll: Poll, handler: H, context: WorkerContext<H>) -> Result<Self> {
+    pub(crate) fn new(poll: Poll, handler: H, context: WorkerContext<H>, events_capacity: usize) -> Result<Self> {
         Ok(Self {
             poll: poll,
             handler: handler,
             context: context,
-            events_capacity: 128,
+            events_capacity: events_capacity,
         })
     }
 

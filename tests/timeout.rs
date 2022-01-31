@@ -48,7 +48,7 @@ fn test_timeout_set_before_run() {
     let handler = TimeoutsTestHandler::new(timeouts.clone());
 
     // Create worker and get a context
-    let context = WorkerContext::new();
+    let context = WorkerContext::new(64);
     assert!(!context.worker_created());
     let mut worker = context.create_worker(poll, handler).unwrap().unwrap();
     assert!(context.worker_created());
@@ -87,7 +87,7 @@ fn test_timeout_set_after_run() {
     let handler = TimeoutsTestHandler::new(timeouts.clone());
 
     // Create worker and get a context
-    let context = WorkerContext::new();
+    let context = WorkerContext::new(64);
     let mut worker = context.create_worker(poll, handler).unwrap().unwrap();
 
     // Run the worker

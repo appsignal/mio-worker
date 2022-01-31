@@ -24,7 +24,9 @@ struct WorkerContextInner<H: Handler> {
     /// Whether the worker should be running
     running: AtomicBool,
     /// Whether a worker has been created
-    worker_created: AtomicBool
+    worker_created: AtomicBool,
+    /// Events capacity to use
+    events_capacity: usize
 }
 
 impl<H> WorkerContext<H>
@@ -32,7 +34,7 @@ where
     H: Handler,
 {
     /// Create a new worker context
-    pub fn new() -> Self {
+    pub fn new(events_capacity: usize) -> Self {
         Self {
             inner: Arc::new(WorkerContextInner {
                 waker: Mutex::new(None),
@@ -40,6 +42,7 @@ where
                 timeouts: Timeouts::new(),
                 running: AtomicBool::new(false),
                 worker_created: AtomicBool::new(false),
+                events_capacity: events_capacity
             })
         }
     }
@@ -59,7 +62,7 @@ where
             Err(e) => return Some(Err(e))
         }
         self.inner.worker_created.store(true, Ordering::SeqCst);
-        Some(Worker::new(poll, handler, self.clone()))
+        Some(Worker::new(poll, handler, self.clone(), self.inner.events_capacity))
     }
 
     pub fn clone(&self) -> Self {
