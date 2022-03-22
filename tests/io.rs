@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::io::{ErrorKind, Read, Write};
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
@@ -11,7 +12,7 @@ use mio_worker::{Handler, Result, WorkerContext};
 
 mod common;
 
-type Messages = Arc<Mutex<Vec<String>>>;
+type BytesRead = Arc<AtomicUsize>;
 
 const SERVER: Token = Token(0);
 
@@ -19,7 +20,7 @@ struct ServerHandler {
     listener: TcpListener,
     connections: HashMap<Token, TcpStream>,
     latest_token: Token,
-    pub messages: Messages,
+    pub bytes_read: BytesRead,
 }
 
 impl Handler for ServerHandler {
@@ -54,17 +55,10 @@ impl Handler for ServerHandler {
             token => match self.connections.get_mut(&token) {
                 Some(connection) if event.is_readable() => {
                     // Probably read from a connection
-                    let bytes_read = 0;
                     let mut received_data = vec![0; 4096];
-                    // We are just assuming the messages comes through in one read,
-                    // this is a wrong assumption in reality.
-                    match connection.read(&mut received_data[bytes_read..]) {
-                        Ok(_) => {
-                            // Receive message and add it
-                            let message =
-                                String::from_utf8_lossy(&received_data[bytes_read..]).to_string();
-                            debug!("Received message '{}'", message);
-                            self.messages.lock().unwrap().push(message);
+                    match connection.read(&mut received_data[0..]) {
+                        Ok(bytes_read) => {
+                            self.bytes_read.fetch_add(bytes_read, Ordering::SeqCst);
                         }
                         Err(e) => error!("Error reading: {:?}", e),
                     }
@@ -78,12 +72,12 @@ impl Handler for ServerHandler {
 }
 
 impl ServerHandler {
-    pub fn new(listener: TcpListener, messages: Messages) -> Self {
+    pub fn new(listener: TcpListener, bytes_read: BytesRead) -> Self {
         Self {
             listener,
             connections: HashMap::new(),
             latest_token: Token(SERVER.0 + 1),
-            messages,
+            bytes_read,
         }
     }
 }
@@ -104,16 +98,13 @@ impl Handler for ClientHandler {
         event: &Event,
     ) -> Result<()> {
         if event.is_writable() {
-            // Just write 5
-            if self.message_count > 4 {
+            if self.message_count > 499 {
                 return Ok(());
             }
             // Make a message and write it
-            let message = format!("Message {}", self.message_count);
-            self.stream.write(message.as_bytes()).unwrap();
+            let message = b"aaaaaaaaaa";
+            self.stream.write(message).unwrap();
             self.message_count += 1;
-            // Sleep a bit to cheat the messages into distinct reads
-            thread::sleep(Duration::from_millis(100));
         }
         Ok(())
     }
@@ -135,20 +126,17 @@ fn test_io() {
     // Server address
     let address = "127.0.0.1:9000".parse().unwrap();
 
-    // Create mio poll instances
-    let server_poll = Poll::new().unwrap();
-    let client_poll = Poll::new().unwrap();
-
     // Set up the TCP server
     let mut listener = TcpListener::bind(address).unwrap();
+    let server_poll = Poll::new().unwrap();
     server_poll
         .registry()
         .register(&mut listener, SERVER, Interest::READABLE)
         .unwrap();
 
-    // Create a messages store and handler
-    let messages = Arc::new(Mutex::new(Vec::new()));
-    let server_handler = ServerHandler::new(listener, messages.clone());
+    // Create a bytes read store and handler
+    let bytes_read = Arc::new(AtomicUsize::new(0));
+    let server_handler = ServerHandler::new(listener, bytes_read.clone());
 
     // Create a server in a thread
     let server_context = WorkerContext::new(64);
@@ -162,6 +150,7 @@ fn test_io() {
 
     // Set up the TCP client
     let mut stream = TcpStream::connect(address).unwrap();
+    let client_poll = Poll::new().unwrap();
     client_poll
         .registry()
         .register(&mut stream, Token(0), Interest::WRITABLE)
@@ -170,7 +159,6 @@ fn test_io() {
     // Create a handler
     let client_handler = ClientHandler::new(stream);
 
-    // Create a client in a thread
     let client_context = WorkerContext::new(64);
     let mut client_worker = client_context
         .create_worker(client_poll, client_handler)
@@ -184,8 +172,5 @@ fn test_io() {
     thread::sleep(Duration::from_secs(1));
 
     // See if we received the messages
-    let messages = messages.lock().unwrap();
-    assert_eq!(5, messages.len());
-    assert!(messages[0].starts_with("Message 0"));
-    assert!(messages[4].starts_with("Message 4"));
+    assert_eq!(5000, bytes_read.load(Ordering::SeqCst));
 }
