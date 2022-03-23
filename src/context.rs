@@ -1,3 +1,5 @@
+#![cfg_attr(feature = "cargo-clippy", allow(clippy::single_match))]
+
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -42,7 +44,7 @@ where
                 timeouts: Timeouts::new(),
                 running: AtomicBool::new(false),
                 worker_created: AtomicBool::new(false),
-                events_capacity: events_capacity,
+                events_capacity,
             }),
         }
     }
@@ -70,6 +72,7 @@ where
         ))
     }
 
+    #[allow(clippy::should_implement_trait)]
     pub fn clone(&self) -> Self {
         WorkerContext {
             inner: self.inner.clone(),

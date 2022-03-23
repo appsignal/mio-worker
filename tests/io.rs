@@ -80,10 +80,10 @@ impl Handler for ServerHandler {
 impl ServerHandler {
     pub fn new(listener: TcpListener, messages: Messages) -> Self {
         Self {
-            listener: listener,
+            listener,
             connections: HashMap::new(),
             latest_token: Token(SERVER.0 + 1),
-            messages: messages,
+            messages,
         }
     }
 }
@@ -122,7 +122,7 @@ impl Handler for ClientHandler {
 impl ClientHandler {
     pub fn new(stream: TcpStream) -> Self {
         Self {
-            stream: stream,
+            stream,
             message_count: 0,
         }
     }

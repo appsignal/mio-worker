@@ -1,3 +1,5 @@
+#![cfg_attr(feature = "cargo-clippy", allow(clippy::single_match))]
+
 use std::time::Duration;
 
 use mio::{Events, Poll};
@@ -27,10 +29,10 @@ where
         events_capacity: usize,
     ) -> Result<Self> {
         Ok(Self {
-            poll: poll,
-            handler: handler,
-            context: context,
-            events_capacity: events_capacity,
+            poll,
+            handler,
+            context,
+            events_capacity,
         })
     }
 
@@ -98,12 +100,10 @@ where
                         }
                         None => (),
                     }
-                } else {
-                    if event.is_readable() || event.is_writable() || event.is_error() {
-                        // We woke because of an IO event
-                        trace!("Triggering ready with token {} on handler", event.token().0);
-                        self.handler.ready(&self.context, registry, event)?;
-                    }
+                } else if event.is_readable() || event.is_writable() || event.is_error() {
+                    // We woke because of an IO event
+                    trace!("Triggering ready with token {} on handler", event.token().0);
+                    self.handler.ready(&self.context, registry, event)?;
                 }
             }
 

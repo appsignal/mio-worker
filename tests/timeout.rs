@@ -32,7 +32,7 @@ impl Handler for TimeoutsTestHandler {
 
 impl TimeoutsTestHandler {
     pub fn new(timeouts: Timeouts) -> Self {
-        Self { timeouts: timeouts }
+        Self { timeouts }
     }
 }
 

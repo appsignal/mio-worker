@@ -32,7 +32,7 @@ impl Handler for MessagesTestHandler {
 
 impl MessagesTestHandler {
     pub fn new(messages: Messages) -> Self {
-        Self { messages: messages }
+        Self { messages }
     }
 }
 
