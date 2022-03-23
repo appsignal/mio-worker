@@ -1,0 +1,23 @@
+version: v1.0
+name: AppSignal mio_worker
+agent:
+  machine:
+    type: e1-standard-2
+  containers:
+    - name: main
+      image: registry.semaphoreci.com/rust:1.55
+blocks:
+  - name: 'Default'
+    task:
+      prologue:
+        commands:
+          - checkout
+      jobs:
+        - name: Formatter and linter
+          commands:
+            - rustup component add clippy
+            - cargo fmt --verbose --all -- --check
+            - cargo clippy
+        - name: Build and tests
+          commands:
+            - RUST_LOG=trace cargo test

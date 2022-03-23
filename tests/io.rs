@@ -58,6 +58,7 @@ impl Handler for ServerHandler {
                     let mut received_data = vec![0; 4096];
                     match connection.read(&mut received_data[0..]) {
                         Ok(bytes_read) => {
+                            trace!("Read {} bytes", bytes_read);
                             self.bytes_read.fetch_add(bytes_read, Ordering::SeqCst);
                         }
                         Err(e) => error!("Error reading: {:?}", e),
@@ -103,6 +104,7 @@ impl Handler for ClientHandler {
             }
             // Make a message and write it
             let message = b"aaaaaaaaaa";
+            trace!("Writing message: {}", self.message_count);
             self.stream.write(message).unwrap();
             self.message_count += 1;
         }
@@ -167,6 +169,9 @@ fn test_io() {
     thread::spawn(move || {
         client_worker.run().unwrap();
     });
+
+    client_context.shutdown().unwrap();
+    server_context.shutdown().unwrap();
 
     // Sleep for a bit
     thread::sleep(Duration::from_secs(1));
