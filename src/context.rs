@@ -6,12 +6,12 @@ use mio::{Poll, Waker};
 
 use crate::message::Messages;
 use crate::timeout::Timeouts;
-use crate::{Handler, Result, WAKER_TOKEN, Worker};
+use crate::{Handler, Result, Worker, WAKER_TOKEN};
 
 use log::{error, trace};
 
 pub struct WorkerContext<H: Handler> {
-    inner: Arc<WorkerContextInner<H>>
+    inner: Arc<WorkerContextInner<H>>,
 }
 
 struct WorkerContextInner<H: Handler> {
@@ -26,7 +26,7 @@ struct WorkerContextInner<H: Handler> {
     /// Whether a worker has been created
     worker_created: AtomicBool,
     /// Events capacity to use
-    events_capacity: usize
+    events_capacity: usize,
 }
 
 impl<H> WorkerContext<H>
@@ -42,8 +42,8 @@ where
                 timeouts: Timeouts::new(),
                 running: AtomicBool::new(false),
                 worker_created: AtomicBool::new(false),
-                events_capacity: events_capacity
-            })
+                events_capacity: events_capacity,
+            }),
         }
     }
 
@@ -51,22 +51,29 @@ where
     /// `None` if a worker has already been created with this context.
     pub fn create_worker(&self, poll: Poll, handler: H) -> Option<Result<Worker<H>>> {
         if self.worker_created() {
-            return None
+            return None;
         }
         match self.set_waker(&poll) {
             Ok(()) => (),
-            Err(e) => return Some(Err(e))
+            Err(e) => return Some(Err(e)),
         }
         match self.wake() {
             Ok(()) => (),
-            Err(e) => return Some(Err(e))
+            Err(e) => return Some(Err(e)),
         }
         self.inner.worker_created.store(true, Ordering::SeqCst);
-        Some(Worker::new(poll, handler, self.clone(), self.inner.events_capacity))
+        Some(Worker::new(
+            poll,
+            handler,
+            self.clone(),
+            self.inner.events_capacity,
+        ))
     }
 
     pub fn clone(&self) -> Self {
-        WorkerContext { inner: self.inner.clone() }
+        WorkerContext {
+            inner: self.inner.clone(),
+        }
     }
 
     /// Send a message to the handler running in this worker

@@ -20,7 +20,12 @@ where
 {
     /// Create a new worker with a context that was already created
     /// earlier.
-    pub(crate) fn new(poll: Poll, handler: H, context: WorkerContext<H>, events_capacity: usize) -> Result<Self> {
+    pub(crate) fn new(
+        poll: Poll,
+        handler: H,
+        context: WorkerContext<H>,
+        events_capacity: usize,
+    ) -> Result<Self> {
         Ok(Self {
             poll: poll,
             handler: handler,
@@ -97,8 +102,7 @@ where
                     if event.is_readable() || event.is_writable() || event.is_error() {
                         // We woke because of an IO event
                         trace!("Triggering ready with token {} on handler", event.token().0);
-                        self.handler
-                            .ready(&self.context, registry, event)?;
+                        self.handler.ready(&self.context, registry, event)?;
                     }
                 }
             }

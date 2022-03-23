@@ -57,8 +57,8 @@ where
                         Some(message) => {
                             trace!("Popping message from queue, {} left", len - 1);
                             Some(message)
-                        },
-                        None => None
+                        }
+                        None => None,
                     }
                 }
                 Err(e) => {

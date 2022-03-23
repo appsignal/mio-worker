@@ -152,7 +152,10 @@ fn test_io() {
 
     // Create a server in a thread
     let server_context = WorkerContext::new(64);
-    let mut server_worker = server_context.create_worker(server_poll, server_handler).unwrap().unwrap();
+    let mut server_worker = server_context
+        .create_worker(server_poll, server_handler)
+        .unwrap()
+        .unwrap();
     thread::spawn(move || {
         server_worker.run().unwrap();
     });
@@ -169,7 +172,10 @@ fn test_io() {
 
     // Create a client in a thread
     let client_context = WorkerContext::new(64);
-    let mut client_worker = client_context.create_worker(client_poll, client_handler).unwrap().unwrap();
+    let mut client_worker = client_context
+        .create_worker(client_poll, client_handler)
+        .unwrap()
+        .unwrap();
     thread::spawn(move || {
         client_worker.run().unwrap();
     });
