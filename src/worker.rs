@@ -14,6 +14,7 @@ pub struct Worker<H: Handler> {
     handler: H,
     context: WorkerContext<H>,
     events_capacity: usize,
+    handler_type_name: String,
 }
 
 impl<H> Worker<H>
@@ -27,12 +28,14 @@ where
         handler: H,
         context: WorkerContext<H>,
         events_capacity: usize,
+        handler_type_name: String,
     ) -> Result<Self> {
         Ok(Self {
             poll,
             handler,
             context,
             events_capacity,
+            handler_type_name
         })
     }
 
@@ -49,7 +52,7 @@ where
     /// Run this worker, blocks the thread it is on until
     /// it finishes.
     pub fn run(&mut self) -> Result<()> {
-        trace!("Starting worker");
+        trace!("Starting {} worker", self.handler_type_name);
 
         // Store that we're running
         self.context.set_running(true);
@@ -63,7 +66,7 @@ where
         loop {
             // Check that we need to be running
             if !self.context.should_run() {
-                trace!("Exiting worker loop");
+                trace!("Exiting worker loop for {}", self.handler_type_name);
                 return Ok(());
             }
 
@@ -71,7 +74,7 @@ where
             match self.context.timeouts().pop() {
                 Some(timeouts) => {
                     for (_instant, timeout) in timeouts {
-                        trace!("Triggering timeout with {:?} on handler", timeout);
+                        trace!("Triggering timeout with {:?} on {}", timeout, self.handler_type_name);
                         self.handler
                             .timeout(&self.context, self.poll.registry(), timeout)?;
                     }
@@ -89,7 +92,7 @@ where
                     // We woke because a message was enqueued or a timeout was set
                     match self.context.messages().pop() {
                         Some(message) => {
-                            trace!("Triggering notify with {:?} on handler", message);
+                            trace!("Triggering notify with {:?} on {}", message, self.handler_type_name);
                             // Run the handler
                             self.handler
                                 .notify(&self.context, self.poll.registry(), message)?;
@@ -102,7 +105,7 @@ where
                     }
                 } else if event.is_readable() || event.is_writable() || event.is_error() {
                     // We woke because of an IO event
-                    trace!("Triggering ready with token {} on handler", event.token().0);
+                    trace!("Triggering ready with token {} on {}", event.token().0, self.handler_type_name);
                     self.handler.ready(&self.context, registry, event)?;
                 }
             }
@@ -111,9 +114,9 @@ where
             let next_timeout = self.context.timeouts().next_timeout();
             match next_timeout {
                 Some(timeout) => {
-                    trace!("Setting next poll duration to {}ms", timeout.as_millis())
+                    trace!("Setting next poll duration to {}ms for {}", timeout.as_millis(), self.handler_type_name)
                 }
-                None => trace!("Setting next poll duration to none"),
+                None => trace!("Setting next poll duration to none for {}", self.handler_type_name),
             };
             poll_duration = self.context.timeouts().next_timeout();
         }

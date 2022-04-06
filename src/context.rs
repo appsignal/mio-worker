@@ -1,5 +1,6 @@
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::single_match))]
 
+use std::any::type_name;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -29,6 +30,8 @@ struct WorkerContextInner<H: Handler> {
     worker_created: AtomicBool,
     /// Events capacity to use
     events_capacity: usize,
+    /// Name of the handler type for logging
+    handler_type_name: String,
 }
 
 impl<H> WorkerContext<H>
@@ -37,6 +40,7 @@ where
 {
     /// Create a new worker context
     pub fn new(events_capacity: usize) -> Self {
+        let handler_type_name = type_name::<H>().to_string();
         Self {
             inner: Arc::new(WorkerContextInner {
                 waker: Mutex::new(None),
@@ -45,6 +49,7 @@ where
                 running: AtomicBool::new(false),
                 worker_created: AtomicBool::new(false),
                 events_capacity,
+                handler_type_name
             }),
         }
     }
@@ -69,6 +74,7 @@ where
             handler,
             self.clone(),
             self.inner.events_capacity,
+            self.inner.handler_type_name.clone()
         ))
     }
 
@@ -81,7 +87,7 @@ where
 
     /// Send a message to the handler running in this worker
     pub fn send_message(&self, message: H::Message) -> Result<()> {
-        trace!("Sending message {:?}", message);
+        trace!("Sending message {:?} to {}", message, self.inner.handler_type_name);
         // Push the message onto the queue
         self.inner.messages.push(message);
         // Wake up the worker
@@ -91,8 +97,9 @@ where
     /// Set a timeout to run
     pub fn set_timeout(&self, duration: Duration, timeout: H::Timeout) -> Result<()> {
         trace!(
-            "Setting timeout {:?} for {}ms from now",
+            "Setting timeout {:?} on {} for {}ms from now",
             timeout,
+            self.inner.handler_type_name,
             duration.as_millis()
         );
         // Set the timeout
@@ -104,7 +111,7 @@ where
 
     /// Shutdown the worker this context is bound to
     pub fn shutdown(&self) -> Result<()> {
-        trace!("Called shutdown on worker context");
+        trace!("Called shutdown on worker context for {}", self.inner.handler_type_name);
         self.inner.running.store(false, Ordering::SeqCst);
         self.wake()
     }
@@ -147,12 +154,12 @@ where
             Ok(waker) => match waker.as_ref() {
                 Some(waker) => waker.wake(),
                 None => {
-                    trace!("Sending message to context without waker");
+                    trace!("Sending message to context without waker for {}", self.inner.handler_type_name);
                     Ok(())
                 }
             },
             Err(e) => {
-                error!("Cannot lock waker: {}", e);
+                error!("Cannot lock waker for {}: {}", self.inner.handler_type_name, e);
                 Ok(())
             }
         }
