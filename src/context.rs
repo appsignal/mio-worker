@@ -31,7 +31,7 @@ struct WorkerContextInner<H: Handler> {
     /// Events capacity to use
     events_capacity: usize,
     /// Name of the handler type for logging
-    handler_type_name: String,
+    handler_type_name: &'static str,
 }
 
 impl<H> WorkerContext<H>
@@ -40,7 +40,7 @@ where
 {
     /// Create a new worker context
     pub fn new(events_capacity: usize) -> Self {
-        let handler_type_name = type_name::<H>().to_string();
+        let handler_type_name = type_name::<H>();
         Self {
             inner: Arc::new(WorkerContextInner {
                 waker: Mutex::new(None),
@@ -74,7 +74,7 @@ where
             handler,
             self.clone(),
             self.inner.events_capacity,
-            self.inner.handler_type_name.clone()
+            self.inner.handler_type_name
         ))
     }
 

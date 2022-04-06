@@ -14,7 +14,7 @@ pub struct Worker<H: Handler> {
     handler: H,
     context: WorkerContext<H>,
     events_capacity: usize,
-    handler_type_name: String,
+    handler_type_name: &'static str,
 }
 
 impl<H> Worker<H>
@@ -28,7 +28,7 @@ where
         handler: H,
         context: WorkerContext<H>,
         events_capacity: usize,
-        handler_type_name: String,
+        handler_type_name: &'static str,
     ) -> Result<Self> {
         Ok(Self {
             poll,
