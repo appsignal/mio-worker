@@ -37,7 +37,7 @@ impl MessagesTestHandler {
 }
 
 #[test]
-fn test_messages_new() {
+fn test_messages_from_threads() {
     common::setup();
 
     // Create a mio poll instance
@@ -56,14 +56,16 @@ fn test_messages_new() {
         worker.run().unwrap();
     });
 
-    // Send messages. Both fast and with some time in between.
+    // Send messages from a bunch of threads. Both fast and with some time in between.
     for i in 0..10 {
-        thread::sleep(Duration::from_millis(100));
-        for i2 in 0..10_000 {
-            context
-                .send_message(format!("Message {}-{}", i, i2))
-                .unwrap();
-        }
+        let context_clone = context.clone();
+        thread::spawn(move || {
+            for i2 in 0..10_000 {
+                context_clone
+                    .send_message(format!("Message {}-{}", i, i2))
+                    .unwrap();
+            }
+        });
     }
 
     // Sleep for a bit
@@ -72,8 +74,9 @@ fn test_messages_new() {
     // See if we received the messages
     let messages = messages.lock().unwrap();
     assert_eq!(100_000, messages.len());
-    assert_eq!("Message 0-0", messages[0]);
-    assert_eq!("Message 0-4", messages[4]);
+    assert!(messages.contains(&"Message 0-4".to_string()));
+    assert!(messages.contains(&"Message 1-11".to_string()));
+    assert!(messages.contains(&"Message 9-99".to_string()));
 }
 
 #[test]
