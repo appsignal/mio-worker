@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::io::{ErrorKind, Read, Write};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
@@ -53,7 +53,7 @@ impl Handler for ServerHandler {
                 self.connections.insert(self.latest_token, connection);
             },
             token => match self.connections.get_mut(&token) {
-                Some(connection) if event.is_readable() => {
+                Some(connection) if event.is_readable() => loop {
                     let mut received_data = vec![0; 4096];
                     match connection.read(&mut received_data) {
                         Ok(bytes_read) => {
@@ -63,10 +63,12 @@ impl Handler for ServerHandler {
                             debug!("Received data: '{}'", message);
                             self.bytes_received.fetch_add(bytes_read, Ordering::SeqCst);
                         }
+                        Err(e) if e.kind() == ErrorKind::WouldBlock => break,
                         Err(e) => error!("Error reading: {:?}", e),
                     }
-                }
-                _ => (),
+                },
+                Some(_) => debug!("Not readable"),
+                None => debug!("No connection"),
             },
         }
 
@@ -101,15 +103,20 @@ impl Handler for ClientHandler {
         event: &Event,
     ) -> Result<()> {
         if event.is_writable() {
-            // Just write 5
-            if self.message_count > 4 {
-                return Ok(());
+            loop {
+                // Write a 100
+                if self.message_count > 99 {
+                    return Ok(());
+                }
+                // Make a message and write it
+                match self.stream.write(b"aaaaaaaaaa") {
+                    Ok(_) => (),
+                    Err(e) if e.kind() == ErrorKind::WouldBlock => break,
+                    Err(e) => error!("Error writing: {}", e),
+                }
+                self.message_count += 1;
+                debug!("Wrote {} messages", self.message_count);
             }
-            // Make a message and write it
-            self.stream.write(b"aaaaaaaaaa").expect("Could not write");
-            self.message_count += 1;
-            // Sleep a bit to cheat the messages into distinct reads
-            thread::sleep(Duration::from_millis(100));
         }
         Ok(())
     }
@@ -131,9 +138,8 @@ fn test_io() {
     // Server address
     let address = "127.0.0.1:9000".parse().unwrap();
 
-    // Create mio poll instances
+    // Create mio poll instance
     let server_poll = Poll::new().unwrap();
-    let client_poll = Poll::new().unwrap();
 
     // Set up the TCP server
     let mut listener = TcpListener::bind(address).unwrap();
@@ -156,29 +162,38 @@ fn test_io() {
         server_worker.run().unwrap();
     });
 
-    // Set up the TCP client
-    let mut stream = TcpStream::connect(address).unwrap();
-    client_poll
-        .registry()
-        .register(&mut stream, Token(0), Interest::WRITABLE)
-        .unwrap();
+    // Number of threads to run
+    let thread_count = 10;
 
-    // Create a handler
-    let client_handler = ClientHandler::new(stream);
-
-    // Create a client in a thread
-    let client_context = WorkerContext::new(64);
-    let mut client_worker = client_context
-        .create_worker(client_poll, client_handler)
-        .unwrap()
-        .unwrap();
-    thread::spawn(move || {
-        client_worker.run().unwrap();
-    });
+    // Create clients that write data
+    for _ in 0..thread_count {
+        thread::spawn(move || {
+            // Set up the TCP client
+            let mut stream = TcpStream::connect(address).unwrap();
+            // Create a poll
+            let client_poll = Poll::new().unwrap();
+            // Register interest
+            client_poll
+                .registry()
+                .register(&mut stream, Token(0), Interest::WRITABLE)
+                .unwrap();
+            // Create a handler
+            let client_handler = ClientHandler::new(stream);
+            // Create a context
+            let client_context = WorkerContext::new(64);
+            // Create a worker
+            let mut client_worker = client_context
+                .create_worker(client_poll, client_handler)
+                .unwrap()
+                .unwrap();
+            // Run it
+            client_worker.run().unwrap();
+        });
+    }
 
     // Sleep for a bit
     thread::sleep(Duration::from_secs(1));
 
     // See if we received the correct amount of data
-    assert_eq!(50, bytes_received.load(Ordering::SeqCst));
+    assert_eq!(10 * 100 * 10, bytes_received.load(Ordering::SeqCst));
 }
