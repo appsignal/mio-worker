@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::io::{ErrorKind, Read, Write};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;
 use std::time::Duration;
 
@@ -11,7 +12,7 @@ use mio_worker::{Handler, Result, WorkerContext};
 
 mod common;
 
-type Messages = Arc<Mutex<Vec<String>>>;
+type BytesReceived = Arc<AtomicUsize>;
 
 const SERVER: Token = Token(0);
 
@@ -19,7 +20,7 @@ struct ServerHandler {
     listener: TcpListener,
     connections: HashMap<Token, TcpStream>,
     latest_token: Token,
-    pub messages: Messages,
+    bytes_received: BytesReceived,
 }
 
 impl Handler for ServerHandler {
@@ -53,18 +54,14 @@ impl Handler for ServerHandler {
             },
             token => match self.connections.get_mut(&token) {
                 Some(connection) if event.is_readable() => {
-                    // Probably read from a connection
-                    let bytes_read = 0;
                     let mut received_data = vec![0; 4096];
-                    // We are just assuming the messages comes through in one read,
-                    // this is a wrong assumption in reality.
-                    match connection.read(&mut received_data[bytes_read..]) {
-                        Ok(_) => {
+                    match connection.read(&mut received_data) {
+                        Ok(bytes_read) => {
                             // Receive message and add it
                             let message =
                                 String::from_utf8_lossy(&received_data[bytes_read..]).to_string();
-                            debug!("Received message '{}'", message);
-                            self.messages.lock().unwrap().push(message);
+                            debug!("Received data: '{}'", message);
+                            self.bytes_received.fetch_add(bytes_read, Ordering::SeqCst);
                         }
                         Err(e) => error!("Error reading: {:?}", e),
                     }
@@ -78,12 +75,12 @@ impl Handler for ServerHandler {
 }
 
 impl ServerHandler {
-    pub fn new(listener: TcpListener, messages: Messages) -> Self {
+    pub fn new(listener: TcpListener, bytes_received: BytesReceived) -> Self {
         Self {
             listener,
             connections: HashMap::new(),
             latest_token: Token(SERVER.0 + 1),
-            messages,
+            bytes_received,
         }
     }
 }
@@ -109,8 +106,7 @@ impl Handler for ClientHandler {
                 return Ok(());
             }
             // Make a message and write it
-            let message = format!("Message {}", self.message_count);
-            self.stream.write(message.as_bytes()).unwrap();
+            self.stream.write(b"aaaaaaaaaa").expect("Could not write");
             self.message_count += 1;
             // Sleep a bit to cheat the messages into distinct reads
             thread::sleep(Duration::from_millis(100));
@@ -147,8 +143,8 @@ fn test_io() {
         .unwrap();
 
     // Create a messages store and handler
-    let messages = Arc::new(Mutex::new(Vec::new()));
-    let server_handler = ServerHandler::new(listener, messages.clone());
+    let bytes_received = Arc::new(AtomicUsize::new(0));
+    let server_handler = ServerHandler::new(listener, bytes_received.clone());
 
     // Create a server in a thread
     let server_context = WorkerContext::new(64);
@@ -183,9 +179,6 @@ fn test_io() {
     // Sleep for a bit
     thread::sleep(Duration::from_secs(1));
 
-    // See if we received the messages
-    let messages = messages.lock().unwrap();
-    assert_eq!(5, messages.len());
-    assert!(messages[0].starts_with("Message 0"));
-    assert!(messages[4].starts_with("Message 4"));
+    // See if we received the correct amount of data
+    assert_eq!(50, bytes_received.load(Ordering::SeqCst));
 }
