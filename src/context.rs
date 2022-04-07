@@ -49,7 +49,7 @@ where
                 running: AtomicBool::new(false),
                 worker_created: AtomicBool::new(false),
                 events_capacity,
-                handler_type_name
+                handler_type_name,
             }),
         }
     }
@@ -74,7 +74,7 @@ where
             handler,
             self.clone(),
             self.inner.events_capacity,
-            self.inner.handler_type_name
+            self.inner.handler_type_name,
         ))
     }
 
@@ -87,7 +87,11 @@ where
 
     /// Send a message to the handler running in this worker
     pub fn send_message(&self, message: H::Message) -> Result<()> {
-        trace!("Sending message {:?} to {}", message, self.inner.handler_type_name);
+        trace!(
+            "Sending message {:?} to {}",
+            message,
+            self.inner.handler_type_name
+        );
         // Push the message onto the queue
         self.inner.messages.push(message);
         // Wake up the worker
@@ -111,7 +115,10 @@ where
 
     /// Shutdown the worker this context is bound to
     pub fn shutdown(&self) -> Result<()> {
-        trace!("Called shutdown on worker context for {}", self.inner.handler_type_name);
+        trace!(
+            "Called shutdown on worker context for {}",
+            self.inner.handler_type_name
+        );
         self.inner.running.store(false, Ordering::SeqCst);
         self.wake()
     }
@@ -154,12 +161,18 @@ where
             Ok(waker) => match waker.as_ref() {
                 Some(waker) => waker.wake(),
                 None => {
-                    trace!("Sending message to context without waker for {}", self.inner.handler_type_name);
+                    trace!(
+                        "Sending message to context without waker for {}",
+                        self.inner.handler_type_name
+                    );
                     Ok(())
                 }
             },
             Err(e) => {
-                error!("Cannot lock waker for {}: {}", self.inner.handler_type_name, e);
+                error!(
+                    "Cannot lock waker for {}: {}",
+                    self.inner.handler_type_name, e
+                );
                 Ok(())
             }
         }
