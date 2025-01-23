@@ -13,4 +13,4 @@ use mio::Token;
 pub type Result<T> = std::io::Result<T>;
 
 /// Indicates a message was sent or timeout set/triggered
-const WAKER_TOKEN: Token = Token(std::usize::MAX);
+const WAKER_TOKEN: Token = Token(usize::MAX);

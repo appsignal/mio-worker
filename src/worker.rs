@@ -69,19 +69,16 @@ where
             }
 
             // Handle timeouts
-            match self.context.timeouts().pop() {
-                Some(timeouts) => {
-                    for (_instant, timeout) in timeouts {
-                        trace!(
-                            "Triggering timeout with {:?} on {}",
-                            timeout,
-                            self.handler_type_name
-                        );
-                        self.handler
-                            .timeout(&self.context, self.poll.registry(), timeout)?;
-                    }
+            if let Some(timeouts) = self.context.timeouts().pop() {
+                for (_instant, timeout) in timeouts {
+                    trace!(
+                        "Triggering timeout with {:?} on {}",
+                        timeout,
+                        self.handler_type_name
+                    );
+                    self.handler
+                        .timeout(&self.context, self.poll.registry(), timeout)?;
                 }
-                None => (),
             }
 
             // Poll for new events
@@ -92,22 +89,19 @@ where
             for event in events.iter() {
                 if event.token() == WAKER_TOKEN {
                     // We woke because a message was enqueued or a timeout was set
-                    match self.context.messages().pop() {
-                        Some(message) => {
-                            trace!(
-                                "Triggering notify with {:?} on {}",
-                                message,
-                                self.handler_type_name
-                            );
-                            // Run the handler
-                            self.handler
-                                .notify(&self.context, self.poll.registry(), message)?;
-                            // See if there are more messages we need to wake up for
-                            if !self.context.messages().is_empty() {
-                                self.context.wake()?;
-                            }
+                    if let Some(message) = self.context.messages().pop() {
+                        trace!(
+                            "Triggering notify with {:?} on {}",
+                            message,
+                            self.handler_type_name
+                        );
+                        // Run the handler
+                        self.handler
+                            .notify(&self.context, self.poll.registry(), message)?;
+                        // See if there are more messages we need to wake up for
+                        if !self.context.messages().is_empty() {
+                            self.context.wake()?;
                         }
-                        None => (),
                     }
                 } else if event.is_readable() || event.is_writable() || event.is_error() {
                     // We woke because of an IO event

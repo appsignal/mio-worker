@@ -1,4 +1,4 @@
-name: Rust
+name: CI
 
 on:
   push:
@@ -12,10 +12,11 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
     - uses: actions/checkout@v3
     - name: Build
       run: cargo build --verbose
     - name: Run tests
       run: cargo test --verbose
+    - name: Run clippy
+      run: cargo clippy --verbose
