@@ -5,10 +5,10 @@ authors = ["thijsc <thijs@appsignal.com>"]
 edition = "2018"
 
 [dependencies]
-log = "0.4"
+log = "*"
 
 [dependencies.mio]
-version = "0.8"
+version = "1.0"
 features = ["os-poll", "net"]
 
 [dev-dependencies]

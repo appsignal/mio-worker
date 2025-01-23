@@ -1,5 +1,3 @@
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::single_match))]
-
 use std::time::Duration;
 
 use mio::{Events, Poll};
