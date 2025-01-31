@@ -1,6 +1,6 @@
 # Mio Worker
 
-Simple worker running on of [Mio](https://github.com/tokio-rs/mio) that can:
+Simple worker running on top of [Mio](https://github.com/tokio-rs/mio) that can:
 
  * Receive messages
  * Schedule and run timeouts
