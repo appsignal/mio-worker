@@ -16,6 +16,10 @@ type BytesReceived = Arc<AtomicUsize>;
 
 const SERVER: Token = Token(0);
 
+const NUMBER_OF_THREADS: usize = 20;
+const NUMBER_OF_MESSAGES: usize = 10_000;
+const MESSAGE: &[u8] = b"Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.";
+
 struct ServerHandler {
     listener: TcpListener,
     connections: HashMap<Token, TcpStream>,
@@ -104,12 +108,11 @@ impl Handler for ClientHandler {
     ) -> Result<()> {
         if event.is_writable() {
             loop {
-                // Write a 100
-                if self.message_count > 99 {
+                if self.message_count == NUMBER_OF_MESSAGES{
                     return Ok(());
                 }
                 // Make a message and write it
-                match self.stream.write(b"aaaaaaaaaa") {
+                match self.stream.write(MESSAGE) {
                     Ok(_) => (),
                     Err(e) if e.kind() == ErrorKind::WouldBlock => break,
                     Err(e) => error!("Error writing: {}", e),
@@ -162,11 +165,8 @@ fn test_io() {
         server_worker.run().unwrap();
     });
 
-    // Number of threads to run
-    let thread_count = 10;
-
     // Create clients that write data
-    for _ in 0..thread_count {
+    for _ in 0..NUMBER_OF_THREADS {
         thread::spawn(move || {
             // Set up the TCP client
             let mut stream = TcpStream::connect(address).unwrap();
@@ -192,8 +192,8 @@ fn test_io() {
     }
 
     // Sleep for a bit
-    thread::sleep(Duration::from_secs(1));
+    thread::sleep(Duration::from_secs(2));
 
     // See if we received the correct amount of data
-    assert_eq!(10 * 100 * 10, bytes_received.load(Ordering::SeqCst));
+    assert_eq!(NUMBER_OF_THREADS * NUMBER_OF_MESSAGES * MESSAGE.len(), bytes_received.load(Ordering::SeqCst));
 }

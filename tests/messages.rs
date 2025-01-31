@@ -8,6 +8,9 @@ use mio_worker::{Handler, Result, WorkerContext};
 
 mod common;
 
+const NUMBER_OF_THREADS: usize = 10;
+const NUMBER_OF_MESSAGES: usize = 10_000;
+
 type Messages = Arc<Mutex<Vec<String>>>;
 
 struct MessagesTestHandler {
@@ -57,10 +60,10 @@ fn test_messages_from_threads() {
     });
 
     // Send messages from a bunch of threads. Both fast and with some time in between.
-    for i in 0..10 {
+    for i in 0..NUMBER_OF_THREADS {
         let context_clone = context.clone();
         thread::spawn(move || {
-            for i2 in 0..10_000 {
+            for i2 in 0..NUMBER_OF_MESSAGES {
                 context_clone
                     .send_message(format!("Message {}-{}", i, i2))
                     .unwrap();
@@ -69,14 +72,15 @@ fn test_messages_from_threads() {
     }
 
     // Sleep for a bit
-    thread::sleep(Duration::from_secs(1));
+    thread::sleep(Duration::from_secs(2));
 
     // See if we received the messages
     let messages = messages.lock().unwrap();
-    assert_eq!(100_000, messages.len());
+    assert_eq!(NUMBER_OF_THREADS * NUMBER_OF_MESSAGES, messages.len());
     assert!(messages.contains(&"Message 0-4".to_string()));
     assert!(messages.contains(&"Message 1-11".to_string()));
     assert!(messages.contains(&"Message 9-99".to_string()));
+    assert!(messages.contains(&"Message 9-999".to_string()));
 }
 
 #[test]
@@ -90,7 +94,7 @@ fn test_messages_with_context() {
     assert!(!context.is_running());
 
     // Send a couple of messages
-    for i in 0..10_000 {
+    for i in 0..NUMBER_OF_MESSAGES {
         context.send_message(format!("Message {}", i)).unwrap();
     }
 
@@ -110,7 +114,7 @@ fn test_messages_with_context() {
     });
 
     // Sleep for a bit
-    thread::sleep(Duration::from_millis(500));
+    thread::sleep(Duration::from_secs(2));
 
     assert!(context.is_running());
 
@@ -125,7 +129,7 @@ fn test_messages_with_context() {
 
     // See if we received the messages
     let messages = messages.lock().unwrap();
-    assert_eq!(10_000, messages.len());
+    assert_eq!(NUMBER_OF_MESSAGES, messages.len());
     assert_eq!("Message 0", messages[0]);
     assert_eq!("Message 4", messages[4]);
 }
