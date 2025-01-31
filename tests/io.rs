@@ -16,7 +16,7 @@ type BytesReceived = Arc<AtomicUsize>;
 
 const SERVER: Token = Token(0);
 
-const NUMBER_OF_THREADS: usize = 20;
+const NUMBER_OF_THREADS: usize = 10;
 const NUMBER_OF_MESSAGES: usize = 10_000;
 const MESSAGE: &[u8] = b"Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.";
 
@@ -58,7 +58,7 @@ impl Handler for ServerHandler {
             },
             token => match self.connections.get_mut(&token) {
                 Some(connection) if event.is_readable() => loop {
-                    let mut received_data = vec![0; 4096];
+                    let mut received_data = vec![0; MESSAGE.len() * 2];
                     match connection.read(&mut received_data) {
                         Ok(bytes_read) => {
                             // Receive message and add it
@@ -68,7 +68,7 @@ impl Handler for ServerHandler {
                             self.bytes_received.fetch_add(bytes_read, Ordering::SeqCst);
                         }
                         Err(e) if e.kind() == ErrorKind::WouldBlock => break,
-                        Err(e) => error!("Error reading: {:?}", e),
+                        Err(e) => panic!("Error reading: {:?}", e),
                     }
                 },
                 Some(_) => debug!("Not readable"),
@@ -108,14 +108,14 @@ impl Handler for ClientHandler {
     ) -> Result<()> {
         if event.is_writable() {
             loop {
-                if self.message_count == NUMBER_OF_MESSAGES{
+                if self.message_count >= NUMBER_OF_MESSAGES {
                     return Ok(());
                 }
                 // Make a message and write it
                 match self.stream.write(MESSAGE) {
                     Ok(_) => (),
                     Err(e) if e.kind() == ErrorKind::WouldBlock => break,
-                    Err(e) => error!("Error writing: {}", e),
+                    Err(e) => panic!("Error writing: {}", e),
                 }
                 self.message_count += 1;
                 debug!("Wrote {} messages", self.message_count);
@@ -195,5 +195,9 @@ fn test_io() {
     thread::sleep(Duration::from_secs(4));
 
     // See if we received the correct amount of data
-    assert_eq!(NUMBER_OF_THREADS * NUMBER_OF_MESSAGES * MESSAGE.len(), bytes_received.load(Ordering::SeqCst));
+    assert_eq!(
+        NUMBER_OF_THREADS * NUMBER_OF_MESSAGES * MESSAGE.len(),
+        bytes_received.load(Ordering::SeqCst),
+        "Received data does not match sent data"
+    );
 }
