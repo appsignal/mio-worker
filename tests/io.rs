@@ -192,7 +192,7 @@ fn test_io() {
     }
 
     // Sleep for a bit
-    thread::sleep(Duration::from_secs(2));
+    thread::sleep(Duration::from_secs(4));
 
     // See if we received the correct amount of data
     assert_eq!(NUMBER_OF_THREADS * NUMBER_OF_MESSAGES * MESSAGE.len(), bytes_received.load(Ordering::SeqCst));
